@@ -1,51 +1,39 @@
 "use client";
 
-import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { FormEvent, useState } from "react";
 
-export default function RegisterPage() {
-  const [name, setName] = useState("");
+export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-
-    setMessage("");
     setError("");
     setLoading(true);
 
     try {
-      const response = await fetch("/api/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-        }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Registration failed");
+      if (result?.error) {
+        setError("Invalid email or password.");
         return;
       }
 
-      setMessage("Registration successful!");
-
-      setName("");
-      setEmail("");
-      setPassword("");
+      router.push(result?.url || "/dashboard");
+      router.refresh();
     } catch {
-      setError("Something went wrong");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -54,30 +42,13 @@ export default function RegisterPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 px-4 text-gray-900">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-md text-gray-900">
-        <h1 className="mb-2 text-2xl font-bold text-gray-900">
-          Create Account
-        </h1>
+        <h1 className="mb-2 text-2xl font-bold text-gray-900">Login</h1>
 
         <p className="mb-6 text-sm text-gray-600">
-          Create your Task Tracking System account
+          Sign in to your Task Tracking System account
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Name
-            </label>
-
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              required
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Email
@@ -104,7 +75,6 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
-              minLength={6}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -115,28 +85,19 @@ export default function RegisterPage() {
             </p>
           )}
 
-          {message && (
-            <p className="rounded-lg bg-green-100 p-3 text-sm text-green-600">
-              {message}
-            </p>
-          )}
-
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? "Creating Account..." : "Register"}
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Already have an account?{" "}
-          <Link
-            href="/login"
-            className="font-medium text-blue-600 hover:underline"
-          >
-            Login
+          Don&apos;t have an account?{" "}
+          <Link href="/register" className="font-medium text-blue-600 hover:underline">
+            Register
           </Link>
         </p>
       </div>

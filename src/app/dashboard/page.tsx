@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 
 import { authOptions } from "@/auth";
 import { db } from "@/db";
@@ -82,14 +83,15 @@ export default async function DashboardPage() {
     const allUsers = await db.select().from(users);
     const allProjects = await db.select().from(projects);
     const allTasks = await db.select().from(tasks);
+    const projectNames = new Map(allProjects.map((project) => [project.id, project.name]));
 
     const recentProjects = [...allProjects]
       .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-      .slice(0, 5);
+      .slice(0, allProjects.length);
 
     const recentTasks = [...allTasks]
       .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-      .slice(0, 5);
+      .slice(0, allTasks.length);
 
     const todoTasks = allTasks.filter((task) => task.status === "TODO").length;
     const inProgressTasks = allTasks.filter((task) => task.status === "IN_PROGRESS").length;
@@ -111,9 +113,6 @@ export default async function DashboardPage() {
         totalTasks: projectTasks.length,
       };
     });
-
-    const overallProgress =
-      allTasks.length === 0 ? 0 : Math.round((completedTasks / allTasks.length) * 100);
 
     const developerProgress = allUsers
       .filter((user) => user.role === "DEVELOPER")
@@ -201,7 +200,7 @@ export default async function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {recentProjects.map((project) => (
+                      {recentProjects.slice(0, 3).map((project) => (
                         <div key={project.id} className="rounded-xl border border-slate-200 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <p className="font-medium text-slate-900">{project.name}</p>
@@ -216,6 +215,13 @@ export default async function DashboardPage() {
                       ))}
                     </div>
                   )}
+                  {recentProjects.length > 3 ? (
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <Link href="/projects" className="text-sm font-semibold text-blue-600 hover:underline">
+                        View all projects
+                      </Link>
+                    </div>
+                  ) : null}
                 </SectionCard>
 
                 <SectionCard title="Recent Tasks" subtitle={`${recentTasks.length} items`}>
@@ -225,32 +231,62 @@ export default async function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {recentTasks.map((task) => (
+                      {recentTasks.slice(0, 3).map((task) => (
                         <div key={task.id} className="rounded-xl border border-slate-200 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <p className="font-medium text-slate-900">{task.title}</p>
                             <StatusBadge status={task.status} />
                           </div>
                           <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                            <span>Project #{task.projectId}</span>
+                            <span>{projectNames.get(task.projectId) ?? "Unknown project"}</span>
                             <PriorityBadge priority={task.priority} />
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
+                  {recentTasks.length > 3 ? (
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <Link href="/tasks" className="text-sm font-semibold text-blue-600 hover:underline">
+                        View all tasks
+                      </Link>
+                    </div>
+                  ) : null}
                 </SectionCard>
               </section>
 
               <section className="grid gap-6 xl:grid-cols-2">
-                <SectionCard title="Overall Project Progress">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-700">Portfolio completion</span>
-                      <span className="text-slate-500">{overallProgress}%</span>
+                <SectionCard title="Project Progress" subtitle={`${projectProgress.length} projects`}>
+                  {projectProgress.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                      No projects available.
                     </div>
-                    <ProgressBar value={overallProgress} color="bg-gradient-to-r from-blue-500 to-emerald-500" />
-                  </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {projectProgress.slice(0, 3).map((project) => (
+                        <div key={project.id}>
+                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                            <span className="font-medium text-slate-700">{project.name}</span>
+                            <span className="font-semibold text-slate-600">{project.percentage}%</span>
+                          </div>
+                          <ProgressBar
+                            value={project.percentage}
+                            color="bg-gradient-to-r from-blue-500 to-emerald-500"
+                          />
+                          <p className="mt-2 text-xs text-slate-500">
+                            {project.totalTasks} {project.totalTasks === 1 ? "task" : "tasks"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {projectProgress.length > 3 ? (
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <Link href="/projects" className="text-sm font-semibold text-blue-600 hover:underline">
+                        View all projects
+                      </Link>
+                    </div>
+                  ) : null}
                 </SectionCard>
 
                 <SectionCard title="Overall Task Status Summary">
@@ -284,7 +320,7 @@ export default async function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {allUsers.map((user) => {
+                    {allUsers.filter((user) => user.role === "DEVELOPER").map((user) => {
                       const userTasks = allTasks.filter(
                         (task) => task.assignedTo !== null && Number(task.assignedTo) === user.id
                       );
@@ -296,19 +332,20 @@ export default async function DashboardPage() {
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="font-semibold text-slate-900">{user.name}</p>
-                              <p className="text-xs text-slate-500">{user.email}</p>
                             </div>
                             <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-semibold text-blue-700">
                               {user.role}
                             </span>
                           </div>
-                          <div className="mt-4">
-                            <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-                              <span>{userTasks.length} tasks</span>
-                              <span>{percentage}% done</span>
+                          {user.role === "DEVELOPER" ? (
+                            <div className="mt-4">
+                              <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                                <span>{userTasks.length} tasks</span>
+                                <span>{percentage}% done</span>
+                              </div>
+                              <ProgressBar value={percentage} color="bg-gradient-to-r from-blue-500 to-emerald-500" />
                             </div>
-                            <ProgressBar value={percentage} color="bg-gradient-to-r from-blue-500 to-emerald-500" />
-                          </div>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -450,7 +487,7 @@ export default async function DashboardPage() {
                           <StatusBadge status={task.status} />
                         </div>
                         <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                          <span>Project #{task.projectId}</span>
+                          <span>{projectNames.get(task.projectId) ?? "Unknown project"}</span>
                           <span>{formatDate(task.createdAt)}</span>
                         </div>
                       </div>

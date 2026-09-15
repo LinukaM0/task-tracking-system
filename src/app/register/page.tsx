@@ -7,6 +7,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -29,6 +30,7 @@ export default function RegisterPage() {
           name,
           email,
           password,
+          confirmPassword,
         }),
       });
 
@@ -44,6 +46,7 @@ export default function RegisterPage() {
       setName("");
       setEmail("");
       setPassword("");
+      setConfirmPassword("");
     } catch {
       setError("Something went wrong");
     } finally {
@@ -103,6 +106,22 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
+              required
+              minLength={6}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Confirm Password
+            </label>
+
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm your password"
               required
               minLength={6}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder:text-gray-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"

@@ -5,11 +5,17 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const registerSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-});
+const registerSchema = z
+  .object({
+    name: z.string().trim().min(2, "Name must be at least 2 characters"),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +25,7 @@ export async function POST(request: Request) {
 
     if (!result.success) {
       return NextResponse.json(
-        { error: "Invalid input" },
+        { error: result.error.issues[0]?.message ?? "Invalid input" },
         { status: 400 }
       );
     }
@@ -64,6 +70,18 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      return NextResponse.json(
+        { error: "Email already registered" },
+        { status: 409 }
+      );
+    }
+
     console.error("Registration error:", error);
 
     return NextResponse.json(

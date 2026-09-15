@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 
 type SidebarItem = {
   label: string;
@@ -25,21 +26,25 @@ export function Sidebar({ items }: { items: SidebarItem[] }) {
       </div>
 
       <nav className="space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={item.value === "logout" ? () => signOut({ callbackUrl: "/login" }) : undefined}
-            className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-              item.active
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-          >
-            <span>{item.label}</span>
-            <span className="text-xs opacity-75">{item.value}</span>
-          </button>
-        ))}
+        {items.map((item) => {
+          const className = `flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+            item.active
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`;
+
+          return item.value === "logout" ? (
+            <button key={item.value} type="button" onClick={() => signOut({ callbackUrl: "/login" })} className={className}>
+              <span>{item.label}</span>
+              <span className="text-xs opacity-75">{item.value}</span>
+            </button>
+          ) : (
+            <Link key={item.value} href={`/${item.value === "my-tasks" ? "tasks" : item.value}`} className={className}>
+              <span>{item.label}</span>
+              <span className="text-xs opacity-75">{item.value}</span>
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );

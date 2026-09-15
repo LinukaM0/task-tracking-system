@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Task Tracking System
 
-## Getting Started
+A full-stack task tracking application for software development teams using Next.js App Router, TypeScript, Tailwind CSS, PostgreSQL, Drizzle ORM, NextAuth.js credentials authentication, bcryptjs, and Zod.
 
-First, run the development server:
+## Features
+
+- Credentials registration, login, logout, JWT sessions, and protected routes
+- ADMIN, MANAGER, and DEVELOPER authorization
+- Project CRUD with progress and task statistics
+- Task CRUD, assignment, status/priority updates, search, filtering, and sorting
+- Persistent Kanban board status updates
+- Admin-only user management with self-delete protection
+- PostgreSQL-backed migrations and seed data
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy `.env.example` to `.env`, set `DATABASE_URL`, and provide a strong `AUTH_SECRET`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create the PostgreSQL database and run:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
 
-## Learn More
+Open `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+## Database Commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Migrations are stored in `drizzle/` and preserve existing data.
 
-## Deploy on Vercel
+## Seed Accounts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+All seed accounts use `Password123!`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Role | Email |
+| --- | --- |
+| ADMIN | admin@example.com |
+| MANAGER | manager@example.com |
+| DEVELOPER | developer1@example.com |
+| DEVELOPER | developer2@example.com |
+
+Public registration always creates a `DEVELOPER`. Privileged accounts should be created through the admin user-management page.
+
+## Production
+
+```bash
+npm run build
+npm run start
+```

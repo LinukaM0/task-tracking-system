@@ -1,9 +1,11 @@
 import {
   pgTable,
   serial,
+  integer,
   varchar,
   text,
   timestamp,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -24,6 +26,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at")
     .defaultNow()
     .notNull(),
+
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull(),
 });
 
 export const projects = pgTable("projects", {
@@ -33,14 +39,24 @@ export const projects = pgTable("projects", {
 
   description: text("description"),
 
+  startDate: timestamp("start_date"),
+
+  endDate: timestamp("end_date"),
+
   status: varchar("status", { length: 50 })
     .notNull()
     .default("PLANNED"),
 
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+
   createdAt: timestamp("created_at")
     .defaultNow()
     .notNull(),
-});
+
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull(),
+}, (table) => [index("projects_created_by_idx").on(table.createdBy)]);
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
@@ -59,11 +75,24 @@ export const tasks = pgTable("tasks", {
 
   dueDate: timestamp("due_date"),
 
-  projectId: serial("project_id").notNull(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
 
-  assignedTo: serial("assigned_to"),
+  assignedTo: integer("assigned_to").references(() => users.id, { onDelete: "set null" }),
+
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
 
   createdAt: timestamp("created_at")
     .defaultNow()
     .notNull(),
-});
+
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull(),
+}, (table) => [
+  index("tasks_status_idx").on(table.status),
+  index("tasks_project_id_idx").on(table.projectId),
+  index("tasks_assigned_to_idx").on(table.assignedTo),
+  index("tasks_due_date_idx").on(table.dueDate),
+]);

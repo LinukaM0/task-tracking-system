@@ -9,6 +9,13 @@ import { projects, tasks, users } from "@/db/schema";
 export const taskStatuses = ["TODO", "IN_PROGRESS", "COMPLETED"] as const;
 export const taskPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
+function isTodayOrLater(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return !Number.isNaN(date.getTime()) && date >= today;
+}
+
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, "Task title is required").max(255),
   description: z.string().trim().max(5000, "Description is too long").optional(),
@@ -16,7 +23,9 @@ export const taskInputSchema = z.object({
   assignedTo: z.preprocess((value) => value === "" || value === null ? null : Number(value), z.number().int().positive().nullable()),
   status: z.enum(taskStatuses, { message: "Task status is invalid" }),
   priority: z.enum(taskPriorities, { message: "Task priority is invalid" }),
-  dueDate: z.string().trim().optional().refine((value) => !value || !Number.isNaN(new Date(value).getTime()), "Due date is invalid"),
+  dueDate: z.string().trim().optional()
+    .refine((value) => !value || !Number.isNaN(new Date(value).getTime()), "Due date is invalid")
+    .refine((value) => !value || isTodayOrLater(value), "Due date cannot be in the past"),
 });
 
 export async function getTaskUser() {

@@ -10,49 +10,48 @@ import {
   PriorityBadge,
   ProgressBar,
   SectionCard,
-  Sidebar,
   StatCard,
   StatusBadge,
+  EmptyState,
 } from "@/components/dashboard/DashboardLayout";
-
-const ADMIN_SIDEBAR = [
-  { label: "Dashboard", value: "dashboard", active: true },
-  { label: "Projects", value: "projects" },
-  { label: "Tasks", value: "tasks" },
-  { label: "Kanban Board", value: "kanban" },
-  { label: "Users", value: "users" },
-  { label: "Profile", value: "profile" },
-  { label: "Logout", value: "logout" },
-];
-
-const MANAGER_SIDEBAR = [
-  { label: "Dashboard", value: "dashboard", active: true },
-  { label: "Projects", value: "projects" },
-  { label: "Tasks", value: "tasks" },
-  { label: "Kanban Board", value: "kanban" },
-  { label: "Profile", value: "profile" },
-  { label: "Logout", value: "logout" },
-];
-
-const DEVELOPER_SIDEBAR = [
-  { label: "Dashboard", value: "dashboard", active: true },
-  { label: "My Tasks", value: "my-tasks" },
-  { label: "Kanban Board", value: "kanban" },
-  { label: "Profile", value: "profile" },
-  { label: "Logout", value: "logout" },
-];
 
 function formatDate(value?: Date | string | null) {
   if (!value) return "No due date";
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "No due date";
-
   return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+}
+
+function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+}) {
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">{eyebrow}</p>
+        <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{title}</h1>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </div>
+      <p className="text-xs text-slate-400 shrink-0">{today}</p>
+    </div>
+  );
 }
 
 export default async function DashboardPage() {
@@ -83,71 +82,59 @@ export default async function DashboardPage() {
     const allUsers = await db.select().from(users);
     const allProjects = await db.select().from(projects);
     const allTasks = await db.select().from(tasks);
-    const projectNames = new Map(allProjects.map((project) => [project.id, project.name]));
+    const projectNames = new Map(allProjects.map((p) => [p.id, p.name]));
 
     const recentProjects = [...allProjects]
-      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-      .slice(0, allProjects.length);
+      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
 
     const recentTasks = [...allTasks]
-      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-      .slice(0, allTasks.length);
+      .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
 
-    const todoTasks = allTasks.filter((task) => task.status === "TODO").length;
-    const inProgressTasks = allTasks.filter((task) => task.status === "IN_PROGRESS").length;
-    const completedTasks = allTasks.filter((task) => task.status === "COMPLETED").length;
-    const overdueTasks = allTasks.filter((task) => {
-      if (!task.dueDate || task.status === "COMPLETED") return false;
-      return new Date(task.dueDate).getTime() < Date.now();
+    const todoTasks = allTasks.filter((t) => t.status === "TODO").length;
+    const inProgressTasks = allTasks.filter((t) => t.status === "IN_PROGRESS").length;
+    const completedTasks = allTasks.filter((t) => t.status === "COMPLETED").length;
+    const overdueTasks = allTasks.filter((t) => {
+      if (!t.dueDate || t.status === "COMPLETED") return false;
+      return new Date(t.dueDate).getTime() < Date.now();
     }).length;
 
     const projectProgress = allProjects.map((project) => {
-      const projectTasks = allTasks.filter((task) => Number(task.projectId) === project.id);
-      const completed = projectTasks.filter((task) => task.status === "COMPLETED").length;
+      const projectTasks = allTasks.filter((t) => Number(t.projectId) === project.id);
+      const completed = projectTasks.filter((t) => t.status === "COMPLETED").length;
       const percentage = projectTasks.length === 0 ? 0 : Math.round((completed / projectTasks.length) * 100);
-
-      return {
-        id: project.id,
-        name: project.name,
-        percentage,
-        totalTasks: projectTasks.length,
-      };
+      return { id: project.id, name: project.name, percentage, totalTasks: projectTasks.length };
     });
 
     const developerProgress = allUsers
-      .filter((user) => user.role === "DEVELOPER")
-      .map((user) => {
+      .filter((u) => u.role === "DEVELOPER")
+      .map((u) => {
         const userTasks = allTasks.filter(
-          (task) => task.assignedTo !== null && Number(task.assignedTo) === user.id
+          (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
         );
-        const completed = userTasks.filter((task) => task.status === "COMPLETED").length;
-
+        const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
         return {
-          id: user.id,
-          name: user.name,
+          id: u.id,
+          name: u.name,
           totalTasks: userTasks.length,
           progress: userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100),
         };
       });
 
     const upcomingDeadlines = allTasks
-      .filter((task) => task.dueDate && task.status !== "COMPLETED")
-      .sort(
-        (a, b) =>
-          new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime()
-      )
+      .filter((t) => t.dueDate && t.status !== "COMPLETED")
+      .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime())
       .slice(0, 5);
 
     const developerAssignedTasks = allTasks.filter(
-      (task) => task.assignedTo !== null && Number(task.assignedTo) === currentUserId
+      (t) => t.assignedTo !== null && Number(t.assignedTo) === currentUserId
     );
 
-    const myTodo = developerAssignedTasks.filter((task) => task.status === "TODO");
-    const myInProgress = developerAssignedTasks.filter((task) => task.status === "IN_PROGRESS");
-    const myCompleted = developerAssignedTasks.filter((task) => task.status === "COMPLETED");
-    const myOverdue = developerAssignedTasks.filter((task) => {
-      if (!task.dueDate || task.status === "COMPLETED") return false;
-      return new Date(task.dueDate).getTime() < Date.now();
+    const myTodo = developerAssignedTasks.filter((t) => t.status === "TODO");
+    const myInProgress = developerAssignedTasks.filter((t) => t.status === "IN_PROGRESS");
+    const myCompleted = developerAssignedTasks.filter((t) => t.status === "COMPLETED");
+    const myOverdue = developerAssignedTasks.filter((t) => {
+      if (!t.dueDate || t.status === "COMPLETED") return false;
+      return new Date(t.dueDate).getTime() < Date.now();
     });
 
     const userTaskSummary = {
@@ -158,488 +145,500 @@ export default async function DashboardPage() {
       overdue: myOverdue.length,
     };
 
-    const sidebarItems =
-      role === "ADMIN"
-        ? ADMIN_SIDEBAR
-        : role === "MANAGER"
-          ? MANAGER_SIDEBAR
-          : DEVELOPER_SIDEBAR;
-
+    /* ── ADMIN ──────────────────────────────────────────────────────── */
     if (role === "ADMIN") {
       return (
-        <main className="min-h-screen bg-slate-100 p-4 text-slate-900 lg:p-6">
-          <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
-            <div className="flex-1 space-y-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">
-                  Admin Dashboard
-                </p>
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">
-                  Welcome, {currentUser.name}
-                </h1>
-                <p className="mt-2 text-sm text-slate-600">
-                  System overview for your team and project portfolio.
-                </p>
+        <div className="px-4 py-6 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto">
+          <PageHeader
+            eyebrow="Admin Dashboard"
+            title={`Welcome, ${currentUser.name}`}
+            subtitle="System overview for your team and project portfolio."
+          />
+
+          {/* Stats */}
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Total Users" value={allUsers.length} tone="bg-violet-100 text-violet-700" />
+            <StatCard label="Total Projects" value={allProjects.length} tone="bg-indigo-100 text-indigo-700" />
+            <StatCard label="Total Tasks" value={allTasks.length} tone="bg-sky-100 text-sky-700" />
+            <StatCard label="Overdue" value={overdueTasks} tone="bg-rose-100 text-rose-700" />
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-3">
+            <StatCard label="To Do" value={todoTasks} tone="bg-slate-100 text-slate-700" />
+            <StatCard label="In Progress" value={inProgressTasks} tone="bg-indigo-100 text-indigo-700" />
+            <StatCard label="Completed" value={completedTasks} tone="bg-emerald-100 text-emerald-700" />
+          </section>
+
+          {/* Recent + Tasks */}
+          <section className="grid gap-6 xl:grid-cols-2">
+            <SectionCard
+              title="Recent Projects"
+              subtitle={`${recentProjects.length}`}
+              action={
+                <Link href="/projects" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
+            >
+              {recentProjects.length === 0 ? (
+                <EmptyState message="No projects yet. Create one to get started." />
+              ) : (
+                <div className="space-y-3">
+                  {recentProjects.slice(0, 4).map((project) => (
+                    <Link
+                      key={project.id}
+                      href={`/projects/${project.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                        {project.name}
+                      </p>
+                      <span className="shrink-0 rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                        {project.status.replace("_", " ")}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Recent Tasks"
+              subtitle={`${recentTasks.length}`}
+              action={
+                <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
+            >
+              {recentTasks.length === 0 ? (
+                <EmptyState message="No tasks created yet." />
+              ) : (
+                <div className="space-y-3">
+                  {recentTasks.slice(0, 4).map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                          {projectNames.get(task.projectId) ?? "Unknown project"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={task.status} />
+                        <PriorityBadge priority={task.priority} />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          </section>
+
+          {/* Progress */}
+          <section className="grid gap-6 xl:grid-cols-2">
+            <SectionCard title="Project Progress" subtitle={`${projectProgress.length} projects`}>
+              {projectProgress.length === 0 ? (
+                <EmptyState message="No projects available." />
+              ) : (
+                <div className="space-y-5">
+                  {projectProgress.slice(0, 5).map((project) => (
+                    <div key={project.id}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
+                        <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
+                      </div>
+                      <ProgressBar value={project.percentage} />
+                      <p className="mt-1 text-xs text-slate-400">
+                        {project.totalTasks} {project.totalTasks === 1 ? "task" : "tasks"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Task Status Breakdown">
+              <div className="space-y-5">
+                {[
+                  { label: "To Do", value: todoTasks, color: "bg-slate-400" },
+                  { label: "In Progress", value: inProgressTasks, color: "bg-indigo-500" },
+                  { label: "Completed", value: completedTasks, color: "bg-emerald-500" },
+                ].map((item) => {
+                  const pct = allTasks.length === 0 ? 0 : Math.round((item.value / allTasks.length) * 100);
+                  return (
+                    <div key={item.label}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700">{item.label}</span>
+                        <span className="text-slate-500">{item.value} ({pct}%)</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${item.color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </SectionCard>
+          </section>
 
-              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <StatCard label="Total Users" value={allUsers.length} tone="bg-violet-50 text-violet-700" />
-                <StatCard label="Total Projects" value={allProjects.length} tone="bg-blue-50 text-blue-700" />
-                <StatCard label="Total Tasks" value={allTasks.length} tone="bg-sky-50 text-sky-700" />
-                <StatCard label="TODO" value={todoTasks} tone="bg-slate-50 text-slate-700" />
-                <StatCard label="In Progress" value={inProgressTasks} tone="bg-cyan-50 text-cyan-700" />
-                <StatCard label="Completed" value={completedTasks} tone="bg-emerald-50 text-emerald-700" />
-                <StatCard label="Overdue" value={overdueTasks} tone="bg-rose-50 text-rose-700" />
-              </section>
+          {/* Team overview */}
+          <SectionCard
+            title="Developer Team Overview"
+            subtitle={`${allUsers.filter((u) => u.role === "DEVELOPER").length} developers`}
+            action={
+              <Link href="/users" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                Manage users →
+              </Link>
+            }
+          >
+            {allUsers.filter((u) => u.role === "DEVELOPER").length === 0 ? (
+              <EmptyState message="No developers added yet." />
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {allUsers.filter((u) => u.role === "DEVELOPER").map((u) => {
+                  const userTasks = allTasks.filter(
+                    (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
+                  );
+                  const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
+                  const percentage = userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100);
+                  const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-              <section className="grid gap-6 xl:grid-cols-2">
-                <SectionCard title="Recent Projects" subtitle={`${recentProjects.length} items`}>
-                  {recentProjects.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No projects yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentProjects.slice(0, 3).map((project) => (
-                        <div key={project.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-slate-900">{project.name}</p>
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">
-                              {project.status}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-sm text-slate-500">
-                            {project.description || "No description provided"}
-                          </p>
+                  return (
+                    <div key={u.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold select-none">
+                          {initials}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {recentProjects.length > 3 ? (
-                    <div className="mt-5 border-t border-slate-100 pt-4">
-                      <Link href="/projects" className="text-sm font-semibold text-blue-600 hover:underline">
-                        View all projects
-                      </Link>
-                    </div>
-                  ) : null}
-                </SectionCard>
-
-                <SectionCard title="Recent Tasks" subtitle={`${recentTasks.length} items`}>
-                  {recentTasks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No tasks created yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentTasks.slice(0, 3).map((task) => (
-                        <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-slate-900">{task.title}</p>
-                            <StatusBadge status={task.status} />
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                            <span>{projectNames.get(task.projectId) ?? "Unknown project"}</span>
-                            <PriorityBadge priority={task.priority} />
-                          </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 truncate text-sm">{u.name}</p>
+                          <p className="text-xs text-slate-500 truncate">{u.email}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {recentTasks.length > 3 ? (
-                    <div className="mt-5 border-t border-slate-100 pt-4">
-                      <Link href="/tasks" className="text-sm font-semibold text-blue-600 hover:underline">
-                        View all tasks
-                      </Link>
-                    </div>
-                  ) : null}
-                </SectionCard>
-              </section>
-
-              <section className="grid gap-6 xl:grid-cols-2">
-                <SectionCard title="Project Progress" subtitle={`${projectProgress.length} projects`}>
-                  {projectProgress.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No projects available.
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      {projectProgress.slice(0, 3).map((project) => (
-                        <div key={project.id}>
-                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                            <span className="font-medium text-slate-700">{project.name}</span>
-                            <span className="font-semibold text-slate-600">{project.percentage}%</span>
-                          </div>
-                          <ProgressBar
-                            value={project.percentage}
-                            color="bg-gradient-to-r from-blue-500 to-emerald-500"
-                          />
-                          <p className="mt-2 text-xs text-slate-500">
-                            {project.totalTasks} {project.totalTasks === 1 ? "task" : "tasks"}
-                          </p>
+                      </div>
+                      <div className="mt-3">
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                          <span>{userTasks.length} tasks</span>
+                          <span>{percentage}% done</span>
                         </div>
-                      ))}
+                        <ProgressBar value={percentage} />
+                      </div>
                     </div>
-                  )}
-                  {projectProgress.length > 3 ? (
-                    <div className="mt-5 border-t border-slate-100 pt-4">
-                      <Link href="/projects" className="text-sm font-semibold text-blue-600 hover:underline">
-                        View all projects
-                      </Link>
-                    </div>
-                  ) : null}
-                </SectionCard>
-
-                <SectionCard title="Overall Task Status Summary">
-                  <div className="space-y-4">
-                    {[
-                      { label: "TODO", value: todoTasks, color: "bg-slate-500" },
-                      { label: "IN PROGRESS", value: inProgressTasks, color: "bg-blue-500" },
-                      { label: "COMPLETED", value: completedTasks, color: "bg-emerald-500" },
-                    ].map((item) => {
-                      const pct = allTasks.length === 0 ? 0 : Math.round((item.value / allTasks.length) * 100);
-                      return (
-                        <div key={item.label}>
-                          <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-medium text-slate-700">{item.label}</span>
-                            <span className="text-slate-500">{item.value}</span>
-                          </div>
-                          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                            <div className={`h-full rounded-full ${item.color}`} style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </SectionCard>
-              </section>
-
-              <SectionCard title="Team / User Overview">
-                {allUsers.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                    No users available.
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {allUsers.filter((user) => user.role === "DEVELOPER").map((user) => {
-                      const userTasks = allTasks.filter(
-                        (task) => task.assignedTo !== null && Number(task.assignedTo) === user.id
-                      );
-                      const completed = userTasks.filter((task) => task.status === "COMPLETED").length;
-                      const percentage = userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100);
-
-                      return (
-                        <div key={user.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-slate-900">{user.name}</p>
-                            </div>
-                            <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-semibold text-blue-700">
-                              {user.role}
-                            </span>
-                          </div>
-                          {user.role === "DEVELOPER" ? (
-                            <div className="mt-4">
-                              <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-                                <span>{userTasks.length} tasks</span>
-                                <span>{percentage}% done</span>
-                              </div>
-                              <ProgressBar value={percentage} color="bg-gradient-to-r from-blue-500 to-emerald-500" />
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </SectionCard>
-            </div>
-          </div>
-        </main>
+                  );
+                })}
+              </div>
+            )}
+          </SectionCard>
+        </div>
       );
     }
 
+    /* ── MANAGER ────────────────────────────────────────────────────── */
     if (role === "MANAGER") {
       return (
-        <main className="min-h-screen bg-slate-100 p-4 text-slate-900 lg:p-6">
-          <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
-            <div className="flex-1 space-y-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">
-                  Manager Dashboard
-                </p>
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">
-                  Welcome, {currentUser.name}
-                </h1>
-                <p className="mt-2 text-sm text-slate-600">
-                  Track delivery progress across projects and your team.
-                </p>
-              </div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto">
+          <PageHeader
+            eyebrow="Manager Dashboard"
+            title={`Welcome, ${currentUser.name}`}
+            subtitle="Track delivery progress across projects and your team."
+          />
 
-              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <StatCard label="Total Projects" value={allProjects.length} tone="bg-blue-50 text-blue-700" />
-                <StatCard label="Total Tasks" value={allTasks.length} tone="bg-violet-50 text-violet-700" />
-                <StatCard label="TODO" value={todoTasks} tone="bg-slate-50 text-slate-700" />
-                <StatCard label="In Progress" value={inProgressTasks} tone="bg-cyan-50 text-cyan-700" />
-                <StatCard label="Completed" value={completedTasks} tone="bg-emerald-50 text-emerald-700" />
-                <StatCard label="Overdue" value={overdueTasks} tone="bg-rose-50 text-rose-700" />
-              </section>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard label="Total Projects" value={allProjects.length} tone="bg-indigo-100 text-indigo-700" />
+            <StatCard label="Total Tasks" value={allTasks.length} tone="bg-violet-100 text-violet-700" />
+            <StatCard label="Overdue" value={overdueTasks} tone="bg-rose-100 text-rose-700" />
+            <StatCard label="To Do" value={todoTasks} tone="bg-slate-100 text-slate-700" />
+            <StatCard label="In Progress" value={inProgressTasks} tone="bg-indigo-100 text-indigo-700" />
+            <StatCard label="Completed" value={completedTasks} tone="bg-emerald-100 text-emerald-700" />
+          </section>
 
-              <section className="grid gap-6 xl:grid-cols-2">
-                <SectionCard title="Project Progress">
-                  {allProjects.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No projects available for your team.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {projectProgress.map((project) => (
-                        <div key={project.id}>
-                          <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-medium text-slate-700">{project.name}</span>
-                            <span className="text-slate-500">{project.percentage}%</span>
-                          </div>
-                          <ProgressBar value={project.percentage} color="bg-gradient-to-r from-blue-500 to-emerald-500" />
-                          <p className="mt-2 text-xs text-slate-500">{project.totalTasks} tasks</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </SectionCard>
-
-                <SectionCard title="Developer / Team Task Progress">
-                  {developerProgress.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No developers in the team yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {developerProgress.map((person) => (
-                        <div key={person.id}>
-                          <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="font-medium text-slate-700">{person.name}</span>
-                            <span className="text-slate-500">{person.progress}%</span>
-                          </div>
-                          <ProgressBar value={person.progress} color="bg-gradient-to-r from-indigo-500 to-blue-500" />
-                          <p className="mt-2 text-xs text-slate-500">{person.totalTasks} assigned tasks</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </SectionCard>
-              </section>
-
-              <section className="grid gap-6 xl:grid-cols-2">
-                <SectionCard title="Tasks Assigned to Developers" subtitle={`${allTasks.filter((task) => task.assignedTo !== null).length} items`}>
-                  {allTasks.filter((task) => task.assignedTo !== null).length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No assigned tasks yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {allTasks.filter((task) => task.assignedTo !== null).slice(0, 6).map((task) => (
-                        <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-slate-900">{task.title}</p>
-                            <StatusBadge status={task.status} />
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                            <span>Assigned to #{task.assignedTo}</span>
-                            <PriorityBadge priority={task.priority} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </SectionCard>
-
-                <SectionCard title="Upcoming Deadlines" subtitle={`${upcomingDeadlines.length} items`}>
-                  {upcomingDeadlines.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      No upcoming deadlines.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {upcomingDeadlines.map((task) => (
-                        <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-slate-900">{task.title}</p>
-                            <StatusBadge status={task.status} />
-                          </div>
-                          <p className="mt-2 text-xs text-slate-500">Due: {formatDate(task.dueDate)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </SectionCard>
-              </section>
-
-              <SectionCard title="Recently Created Tasks" subtitle={`${recentTasks.length} items`}>
-                {recentTasks.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                    No tasks created yet.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {recentTasks.map((task) => (
-                      <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium text-slate-900">{task.title}</p>
-                          <StatusBadge status={task.status} />
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                          <span>{projectNames.get(task.projectId) ?? "Unknown project"}</span>
-                          <span>{formatDate(task.createdAt)}</span>
-                        </div>
+          <section className="grid gap-6 xl:grid-cols-2">
+            <SectionCard title="Project Progress">
+              {allProjects.length === 0 ? (
+                <EmptyState message="No projects available for your team." />
+              ) : (
+                <div className="space-y-5">
+                  {projectProgress.map((project) => (
+                    <div key={project.id}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
+                        <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-            </div>
-          </div>
-        </main>
+                      <ProgressBar value={project.percentage} />
+                      <p className="mt-1 text-xs text-slate-400">{project.totalTasks} tasks</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Developer Task Progress">
+              {developerProgress.length === 0 ? (
+                <EmptyState message="No developers in the team yet." />
+              ) : (
+                <div className="space-y-5">
+                  {developerProgress.map((person) => (
+                    <div key={person.id}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700">{person.name}</span>
+                        <span className="shrink-0 text-slate-500">{person.progress}%</span>
+                      </div>
+                      <ProgressBar value={person.progress} color="bg-gradient-to-r from-violet-500 to-indigo-500" />
+                      <p className="mt-1 text-xs text-slate-400">{person.totalTasks} assigned tasks</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-2">
+            <SectionCard
+              title="Assigned Tasks"
+              subtitle={`${allTasks.filter((t) => t.assignedTo !== null).length}`}
+            >
+              {allTasks.filter((t) => t.assignedTo !== null).length === 0 ? (
+                <EmptyState message="No assigned tasks yet." />
+              ) : (
+                <div className="space-y-3">
+                  {allTasks.filter((t) => t.assignedTo !== null).slice(0, 6).map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                        {task.title}
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={task.status} />
+                        <PriorityBadge priority={task.priority} />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Upcoming Deadlines"
+              subtitle={`${upcomingDeadlines.length}`}
+            >
+              {upcomingDeadlines.length === 0 ? (
+                <EmptyState message="No upcoming deadlines." />
+              ) : (
+                <div className="space-y-3">
+                  {upcomingDeadlines.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Due: {formatDate(task.dueDate)}</p>
+                      </div>
+                      <StatusBadge status={task.status} />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          </section>
+
+          <SectionCard
+            title="Recently Created Tasks"
+            subtitle={`${recentTasks.length}`}
+            action={
+              <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                View all →
+              </Link>
+            }
+          >
+            {recentTasks.length === 0 ? (
+              <EmptyState message="No tasks created yet." />
+            ) : (
+              <div className="space-y-3">
+                {recentTasks.slice(0, 6).map((task) => (
+                  <Link
+                    key={task.id}
+                    href={`/tasks/${task.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                        {task.title}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {projectNames.get(task.projectId) ?? "Unknown project"} · {formatDate(task.createdAt)}
+                      </p>
+                    </div>
+                    <StatusBadge status={task.status} />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
       );
     }
 
+    /* ── DEVELOPER ──────────────────────────────────────────────────── */
     return (
-      <main className="min-h-screen bg-slate-100 p-4 text-slate-900 lg:p-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row">
-          <div className="flex-1 space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">
-                Developer Dashboard
-              </p>
-              <h1 className="mt-2 text-3xl font-bold text-slate-900">
-                Welcome, {currentUser.name}
-              </h1>
-              <p className="mt-2 text-sm text-slate-600">
-                Your personal task and delivery overview.
-              </p>
+      <div className="px-4 py-6 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto">
+        <PageHeader
+          eyebrow="Developer Dashboard"
+          title={`Welcome, ${currentUser.name}`}
+          subtitle="Your personal task and delivery overview."
+        />
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <StatCard label="My Tasks" value={userTaskSummary.total} tone="bg-indigo-100 text-indigo-700" />
+          <StatCard label="To Do" value={userTaskSummary.todo} tone="bg-slate-100 text-slate-700" />
+          <StatCard label="In Progress" value={userTaskSummary.inProgress} tone="bg-sky-100 text-sky-700" />
+          <StatCard label="Completed" value={userTaskSummary.completed} tone="bg-emerald-100 text-emerald-700" />
+          <StatCard label="Overdue" value={userTaskSummary.overdue} tone="bg-rose-100 text-rose-700" />
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-2">
+          <SectionCard
+            title="My Recent Tasks"
+            subtitle={`${developerAssignedTasks.length}`}
+            action={
+              <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                View all →
+              </Link>
+            }
+          >
+            {developerAssignedTasks.length === 0 ? (
+              <EmptyState message="No tasks assigned to you yet." />
+            ) : (
+              <div className="space-y-3">
+                {developerAssignedTasks.slice(0, 5).map((task) => (
+                  <Link
+                    key={task.id}
+                    href={`/tasks/${task.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                  >
+                    <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                      {task.title}
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge status={task.status} />
+                      <PriorityBadge priority={task.priority} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Upcoming Deadlines"
+            subtitle={`${developerAssignedTasks.filter((t) => t.dueDate && t.status !== "COMPLETED").length}`}
+          >
+            {developerAssignedTasks.filter((t) => t.dueDate && t.status !== "COMPLETED").length === 0 ? (
+              <EmptyState message="No active deadlines." />
+            ) : (
+              <div className="space-y-3">
+                {developerAssignedTasks
+                  .filter((t) => t.dueDate && t.status !== "COMPLETED")
+                  .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime())
+                  .slice(0, 5)
+                  .map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Due: {formatDate(task.dueDate)}</p>
+                      </div>
+                      <StatusBadge status={task.status} />
+                    </Link>
+                  ))}
+              </div>
+            )}
+          </SectionCard>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-2">
+          <SectionCard title="My Completion Rate">
+            <div className="space-y-3">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-3xl font-bold text-slate-900">
+                    {developerAssignedTasks.length === 0
+                      ? "0"
+                      : Math.round((userTaskSummary.completed / developerAssignedTasks.length) * 100)}%
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">of tasks completed</p>
+                </div>
+                <p className="text-sm text-slate-500 text-right">
+                  {userTaskSummary.completed} / {developerAssignedTasks.length}
+                </p>
+              </div>
+              <ProgressBar
+                value={
+                  developerAssignedTasks.length === 0
+                    ? 0
+                    : Math.round((userTaskSummary.completed / developerAssignedTasks.length) * 100)
+                }
+              />
             </div>
+          </SectionCard>
 
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <StatCard label="My Assigned Tasks" value={userTaskSummary.total} tone="bg-blue-50 text-blue-700" />
-              <StatCard label="My TODO" value={userTaskSummary.todo} tone="bg-slate-50 text-slate-700" />
-              <StatCard label="My In Progress" value={userTaskSummary.inProgress} tone="bg-cyan-50 text-cyan-700" />
-              <StatCard label="My Completed" value={userTaskSummary.completed} tone="bg-emerald-50 text-emerald-700" />
-              <StatCard label="My Overdue" value={userTaskSummary.overdue} tone="bg-rose-50 text-rose-700" />
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <SectionCard title="My Recent Tasks" subtitle={`${developerAssignedTasks.length} items`}>
-                {developerAssignedTasks.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                    No tasks assigned to you.
+          <SectionCard title="My Task Breakdown">
+            <div className="space-y-4">
+              {[
+                { label: "To Do", value: myTodo.length, color: "bg-slate-400" },
+                { label: "In Progress", value: myInProgress.length, color: "bg-indigo-500" },
+                { label: "Completed", value: myCompleted.length, color: "bg-emerald-500" },
+              ].map((item) => {
+                const pct = developerAssignedTasks.length === 0 ? 0 : Math.round((item.value / developerAssignedTasks.length) * 100);
+                return (
+                  <div key={item.label}>
+                    <div className="mb-1.5 flex items-center justify-between text-sm">
+                      <span className="font-medium text-slate-700">{item.label}</span>
+                      <span className="text-slate-500">{item.value}</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${item.color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {developerAssignedTasks.slice(0, 5).map((task) => (
-                      <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium text-slate-900">{task.title}</p>
-                          <StatusBadge status={task.status} />
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                          <span>{formatDate(task.dueDate)}</span>
-                          <PriorityBadge priority={task.priority} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-
-              <SectionCard title="Upcoming Deadlines" subtitle={`${developerAssignedTasks.filter((task) => task.dueDate && task.status !== "COMPLETED").length} items`}>
-                {developerAssignedTasks.filter((task) => task.dueDate && task.status !== "COMPLETED").length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                    No active deadlines.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {developerAssignedTasks
-                      .filter((task) => task.dueDate && task.status !== "COMPLETED")
-                      .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime())
-                      .slice(0, 5)
-                      .map((task) => (
-                        <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-slate-900">{task.title}</p>
-                            <StatusBadge status={task.status} />
-                          </div>
-                          <p className="mt-2 text-xs text-slate-500">Due: {formatDate(task.dueDate)}</p>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </SectionCard>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <SectionCard title="My Task Progress">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">Completion rate</span>
-                    <span className="text-slate-500">
-                      {developerAssignedTasks.length === 0
-                        ? 0
-                        : Math.round((userTaskSummary.completed / developerAssignedTasks.length) * 100)}%
-                    </span>
-                  </div>
-                  <ProgressBar
-                    value={
-                      developerAssignedTasks.length === 0
-                        ? 0
-                        : Math.round((userTaskSummary.completed / developerAssignedTasks.length) * 100)
-                    }
-                    color="bg-gradient-to-r from-blue-500 to-emerald-500"
-                  />
-                </div>
-              </SectionCard>
-
-              <SectionCard title="My Task Status Summary">
-                <div className="space-y-4">
-                  {[
-                    { label: "TODO", value: myTodo.length, color: "bg-slate-500" },
-                    { label: "IN PROGRESS", value: myInProgress.length, color: "bg-blue-500" },
-                    { label: "COMPLETED", value: myCompleted.length, color: "bg-emerald-500" },
-                  ].map((item) => {
-                    const pct = developerAssignedTasks.length === 0 ? 0 : Math.round((item.value / developerAssignedTasks.length) * 100);
-                    return (
-                      <div key={item.label}>
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                          <span className="font-medium text-slate-700">{item.label}</span>
-                          <span className="text-slate-500">{item.value}</span>
-                        </div>
-                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                          <div className={`h-full rounded-full ${item.color}`} style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </SectionCard>
-            </section>
-          </div>
-        </div>
-      </main>
+                );
+              })}
+            </div>
+          </SectionCard>
+        </section>
+      </div>
     );
   } catch (error) {
     console.error("Dashboard error:", error);
 
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
-        <div className="w-full max-w-lg rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-600">
-            Error
-          </p>
-          <h1 className="mt-3 text-2xl font-bold text-slate-900">
-            Unable to load dashboard
-          </h1>
-          <p className="mt-3 text-sm text-slate-600">
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
+            <svg className="h-6 w-6 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-slate-900">Unable to load dashboard</h1>
+          <p className="mt-2 text-sm text-slate-500">
             There was a problem loading your dashboard data. Please try again in a moment.
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 }

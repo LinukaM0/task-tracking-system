@@ -8,6 +8,13 @@ import { users } from "@/db/schema";
 
 export const projectStatuses = ["PLANNED", "IN_PROGRESS", "COMPLETED"] as const;
 
+function isTodayOrLater(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return !Number.isNaN(date.getTime()) && date >= today;
+}
+
 export const projectInputSchema = z
   .object({
     name: z.string().trim().min(1, "Project name is required"),
@@ -18,6 +25,14 @@ export const projectInputSchema = z
   })
   .refine((input) => new Date(input.endDate) >= new Date(input.startDate), {
     message: "End date cannot be before start date",
+    path: ["endDate"],
+  })
+  .refine((input) => isTodayOrLater(input.startDate), {
+    message: "Start date cannot be in the past",
+    path: ["startDate"],
+  })
+  .refine((input) => isTodayOrLater(input.endDate), {
+    message: "End date cannot be in the past",
     path: ["endDate"],
   });
 

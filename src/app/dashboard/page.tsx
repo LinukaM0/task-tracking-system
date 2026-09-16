@@ -54,6 +54,22 @@ function PageHeader({
   );
 }
 
+function CardViewAllButton({ href, label }: { href: string; label: string }) {
+  return (
+    <div className="mt-4 pt-3 border-t border-slate-100">
+      <Link
+        href={href}
+        className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 px-3 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
+      >
+        <span>{label}</span>
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
 
@@ -105,29 +121,34 @@ export default async function DashboardPage() {
       return { id: project.id, name: project.name, percentage, totalTasks: projectTasks.length };
     });
 
-    const developerProgress = allUsers
-      .filter((u) => u.role === "DEVELOPER")
-      .map((u) => {
-        const userTasks = allTasks.filter(
-          (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
-        );
-        const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
-        return {
-          id: u.id,
-          name: u.name,
-          totalTasks: userTasks.length,
-          progress: userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100),
-        };
-      });
+    const developerUsers = allUsers.filter((u) => u.role === "DEVELOPER");
 
-    const upcomingDeadlines = allTasks
+    const developerProgress = developerUsers.map((u) => {
+      const userTasks = allTasks.filter(
+        (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
+      );
+      const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
+      return {
+        id: u.id,
+        name: u.name,
+        totalTasks: userTasks.length,
+        progress: userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100),
+      };
+    });
+
+    const allUpcomingDeadlines = allTasks
       .filter((t) => t.dueDate && t.status !== "COMPLETED")
-      .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime())
-      .slice(0, 5);
+      .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime());
+
+    const managerAssignedTasks = allTasks.filter((t) => t.assignedTo !== null);
 
     const developerAssignedTasks = allTasks.filter(
       (t) => t.assignedTo !== null && Number(t.assignedTo) === currentUserId
     );
+
+    const myUpcomingDeadlines = developerAssignedTasks
+      .filter((t) => t.dueDate && t.status !== "COMPLETED")
+      .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime());
 
     const myTodo = developerAssignedTasks.filter((t) => t.status === "TODO");
     const myInProgress = developerAssignedTasks.filter((t) => t.status === "IN_PROGRESS");
@@ -173,7 +194,7 @@ export default async function DashboardPage() {
           <section className="grid gap-6 xl:grid-cols-2">
             <SectionCard
               title="Recent Projects"
-              subtitle={`${recentProjects.length}`}
+              subtitle={`${recentProjects.length} total`}
               action={
                 <Link href="/projects" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                   View all →
@@ -183,28 +204,33 @@ export default async function DashboardPage() {
               {recentProjects.length === 0 ? (
                 <EmptyState message="No projects yet. Create one to get started." />
               ) : (
-                <div className="space-y-3">
-                  {recentProjects.slice(0, 4).map((project) => (
-                    <Link
-                      key={project.id}
-                      href={`/projects/${project.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                    >
-                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                        {project.name}
-                      </p>
-                      <span className="shrink-0 rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
-                        {project.status.replace("_", " ")}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {recentProjects.slice(0, 3).map((project) => (
+                      <Link
+                        key={project.id}
+                        href={`/projects/${project.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                      >
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {project.name}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                          {project.status.replace("_", " ")}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                  {recentProjects.length > 3 && (
+                    <CardViewAllButton href="/projects" label={`View all projects (${recentProjects.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
 
             <SectionCard
               title="Recent Tasks"
-              subtitle={`${recentTasks.length}`}
+              subtitle={`${recentTasks.length} total`}
               action={
                 <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                   View all →
@@ -214,52 +240,70 @@ export default async function DashboardPage() {
               {recentTasks.length === 0 ? (
                 <EmptyState message="No tasks created yet." />
               ) : (
-                <div className="space-y-3">
-                  {recentTasks.slice(0, 4).map((task) => (
-                    <Link
-                      key={task.id}
-                      href={`/tasks/${task.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                          {task.title}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
-                          {projectNames.get(task.projectId) ?? "Unknown project"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge status={task.status} />
-                        <PriorityBadge priority={task.priority} />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {recentTasks.slice(0, 3).map((task) => (
+                      <Link
+                        key={task.id}
+                        href={`/tasks/${task.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                            {task.title}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                            {projectNames.get(task.projectId) ?? "Unknown project"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge status={task.status} />
+                          <PriorityBadge priority={task.priority} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  {recentTasks.length > 3 && (
+                    <CardViewAllButton href="/tasks" label={`View all tasks (${recentTasks.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
           </section>
 
           {/* Progress */}
           <section className="grid gap-6 xl:grid-cols-2">
-            <SectionCard title="Project Progress" subtitle={`${projectProgress.length} projects`}>
+            <SectionCard
+              title="Project Progress"
+              subtitle={`${projectProgress.length} total`}
+              action={
+                <Link href="/projects" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
+            >
               {projectProgress.length === 0 ? (
                 <EmptyState message="No projects available." />
               ) : (
-                <div className="space-y-5">
-                  {projectProgress.slice(0, 5).map((project) => (
-                    <div key={project.id}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
-                        <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
+                <>
+                  <div className="space-y-5">
+                    {projectProgress.slice(0, 3).map((project) => (
+                      <div key={project.id}>
+                        <div className="mb-1.5 flex items-center justify-between text-sm">
+                          <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
+                          <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
+                        </div>
+                        <ProgressBar value={project.percentage} />
+                        <p className="mt-1 text-xs text-slate-400">
+                          {project.totalTasks} {project.totalTasks === 1 ? "task" : "tasks"}
+                        </p>
                       </div>
-                      <ProgressBar value={project.percentage} />
-                      <p className="mt-1 text-xs text-slate-400">
-                        {project.totalTasks} {project.totalTasks === 1 ? "task" : "tasks"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {projectProgress.length > 3 && (
+                    <CardViewAllButton href="/projects" label={`View all projects (${projectProgress.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
 
@@ -290,47 +334,52 @@ export default async function DashboardPage() {
           {/* Team overview */}
           <SectionCard
             title="Developer Team Overview"
-            subtitle={`${allUsers.filter((u) => u.role === "DEVELOPER").length} developers`}
+            subtitle={`${developerUsers.length} developers`}
             action={
               <Link href="/users" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                 Manage users →
               </Link>
             }
           >
-            {allUsers.filter((u) => u.role === "DEVELOPER").length === 0 ? (
+            {developerUsers.length === 0 ? (
               <EmptyState message="No developers added yet." />
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {allUsers.filter((u) => u.role === "DEVELOPER").map((u) => {
-                  const userTasks = allTasks.filter(
-                    (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
-                  );
-                  const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
-                  const percentage = userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100);
-                  const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+              <>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {developerUsers.slice(0, 3).map((u) => {
+                    const userTasks = allTasks.filter(
+                      (t) => t.assignedTo !== null && Number(t.assignedTo) === u.id
+                    );
+                    const completed = userTasks.filter((t) => t.status === "COMPLETED").length;
+                    const percentage = userTasks.length === 0 ? 0 : Math.round((completed / userTasks.length) * 100);
+                    const initials = u.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-                  return (
-                    <div key={u.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold select-none">
-                          {initials}
+                    return (
+                      <div key={u.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold select-none">
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 truncate text-sm">{u.name}</p>
+                            <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-900 truncate text-sm">{u.name}</p>
-                          <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                        <div className="mt-3">
+                          <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                            <span>{userTasks.length} tasks</span>
+                            <span>{percentage}% done</span>
+                          </div>
+                          <ProgressBar value={percentage} />
                         </div>
                       </div>
-                      <div className="mt-3">
-                        <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                          <span>{userTasks.length} tasks</span>
-                          <span>{percentage}% done</span>
-                        </div>
-                        <ProgressBar value={percentage} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                {developerUsers.length > 3 && (
+                  <CardViewAllButton href="/users" label={`View all team members (${developerUsers.length})`} />
+                )}
+              </>
             )}
           </SectionCard>
         </div>
@@ -357,41 +406,67 @@ export default async function DashboardPage() {
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <SectionCard title="Project Progress">
+            <SectionCard
+              title="Project Progress"
+              subtitle={`${projectProgress.length} total`}
+              action={
+                <Link href="/projects" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
+            >
               {allProjects.length === 0 ? (
                 <EmptyState message="No projects available for your team." />
               ) : (
-                <div className="space-y-5">
-                  {projectProgress.map((project) => (
-                    <div key={project.id}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
-                        <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
+                <>
+                  <div className="space-y-5">
+                    {projectProgress.slice(0, 3).map((project) => (
+                      <div key={project.id}>
+                        <div className="mb-1.5 flex items-center justify-between text-sm">
+                          <span className="font-medium text-slate-700 truncate mr-3">{project.name}</span>
+                          <span className="shrink-0 font-semibold text-slate-600">{project.percentage}%</span>
+                        </div>
+                        <ProgressBar value={project.percentage} />
+                        <p className="mt-1 text-xs text-slate-400">{project.totalTasks} tasks</p>
                       </div>
-                      <ProgressBar value={project.percentage} />
-                      <p className="mt-1 text-xs text-slate-400">{project.totalTasks} tasks</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {projectProgress.length > 3 && (
+                    <CardViewAllButton href="/projects" label={`View all projects (${projectProgress.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
 
-            <SectionCard title="Developer Task Progress">
+            <SectionCard
+              title="Developer Task Progress"
+              subtitle={`${developerProgress.length} developers`}
+              action={
+                <Link href="/kanban" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View Kanban →
+                </Link>
+              }
+            >
               {developerProgress.length === 0 ? (
                 <EmptyState message="No developers in the team yet." />
               ) : (
-                <div className="space-y-5">
-                  {developerProgress.map((person) => (
-                    <div key={person.id}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-medium text-slate-700">{person.name}</span>
-                        <span className="shrink-0 text-slate-500">{person.progress}%</span>
+                <>
+                  <div className="space-y-5">
+                    {developerProgress.slice(0, 3).map((person) => (
+                      <div key={person.id}>
+                        <div className="mb-1.5 flex items-center justify-between text-sm">
+                          <span className="font-medium text-slate-700">{person.name}</span>
+                          <span className="shrink-0 text-slate-500">{person.progress}%</span>
+                        </div>
+                        <ProgressBar value={person.progress} color="bg-gradient-to-r from-violet-500 to-indigo-500" />
+                        <p className="mt-1 text-xs text-slate-400">{person.totalTasks} assigned tasks</p>
                       </div>
-                      <ProgressBar value={person.progress} color="bg-gradient-to-r from-violet-500 to-indigo-500" />
-                      <p className="mt-1 text-xs text-slate-400">{person.totalTasks} assigned tasks</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {developerProgress.length > 3 && (
+                    <CardViewAllButton href="/kanban" label={`View all developer tasks in Kanban`} />
+                  )}
+                </>
               )}
             </SectionCard>
           </section>
@@ -399,62 +474,82 @@ export default async function DashboardPage() {
           <section className="grid gap-6 xl:grid-cols-2">
             <SectionCard
               title="Assigned Tasks"
-              subtitle={`${allTasks.filter((t) => t.assignedTo !== null).length}`}
+              subtitle={`${managerAssignedTasks.length} total`}
+              action={
+                <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
             >
-              {allTasks.filter((t) => t.assignedTo !== null).length === 0 ? (
+              {managerAssignedTasks.length === 0 ? (
                 <EmptyState message="No assigned tasks yet." />
               ) : (
-                <div className="space-y-3">
-                  {allTasks.filter((t) => t.assignedTo !== null).slice(0, 6).map((task) => (
-                    <Link
-                      key={task.id}
-                      href={`/tasks/${task.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                    >
-                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                        {task.title}
-                      </p>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge status={task.status} />
-                        <PriorityBadge priority={task.priority} />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {managerAssignedTasks.slice(0, 3).map((task) => (
+                      <Link
+                        key={task.id}
+                        href={`/tasks/${task.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                      >
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {task.title}
+                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge status={task.status} />
+                          <PriorityBadge priority={task.priority} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  {managerAssignedTasks.length > 3 && (
+                    <CardViewAllButton href="/tasks" label={`View all assigned tasks (${managerAssignedTasks.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
 
             <SectionCard
               title="Upcoming Deadlines"
-              subtitle={`${upcomingDeadlines.length}`}
+              subtitle={`${allUpcomingDeadlines.length} total`}
+              action={
+                <Link href="/tasks?sort=dueDate" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                  View all →
+                </Link>
+              }
             >
-              {upcomingDeadlines.length === 0 ? (
+              {allUpcomingDeadlines.length === 0 ? (
                 <EmptyState message="No upcoming deadlines." />
               ) : (
-                <div className="space-y-3">
-                  {upcomingDeadlines.map((task) => (
-                    <Link
-                      key={task.id}
-                      href={`/tasks/${task.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                          {task.title}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">Due: {formatDate(task.dueDate)}</p>
-                      </div>
-                      <StatusBadge status={task.status} />
-                    </Link>
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-3">
+                    {allUpcomingDeadlines.slice(0, 3).map((task) => (
+                      <Link
+                        key={task.id}
+                        href={`/tasks/${task.id}`}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                            {task.title}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">Due: {formatDate(task.dueDate)}</p>
+                        </div>
+                        <StatusBadge status={task.status} />
+                      </Link>
+                    ))}
+                  </div>
+                  {allUpcomingDeadlines.length > 3 && (
+                    <CardViewAllButton href="/tasks?sort=dueDate" label={`View all deadlines (${allUpcomingDeadlines.length})`} />
+                  )}
+                </>
               )}
             </SectionCard>
           </section>
 
           <SectionCard
             title="Recently Created Tasks"
-            subtitle={`${recentTasks.length}`}
+            subtitle={`${recentTasks.length} total`}
             action={
               <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                 View all →
@@ -464,25 +559,30 @@ export default async function DashboardPage() {
             {recentTasks.length === 0 ? (
               <EmptyState message="No tasks created yet." />
             ) : (
-              <div className="space-y-3">
-                {recentTasks.slice(0, 6).map((task) => (
-                  <Link
-                    key={task.id}
-                    href={`/tasks/${task.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                        {task.title}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {projectNames.get(task.projectId) ?? "Unknown project"} · {formatDate(task.createdAt)}
-                      </p>
-                    </div>
-                    <StatusBadge status={task.status} />
-                  </Link>
-                ))}
-              </div>
+              <>
+                <div className="space-y-3">
+                  {recentTasks.slice(0, 3).map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                          {task.title}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {projectNames.get(task.projectId) ?? "Unknown project"} · {formatDate(task.createdAt)}
+                        </p>
+                      </div>
+                      <StatusBadge status={task.status} />
+                    </Link>
+                  ))}
+                </div>
+                {recentTasks.length > 3 && (
+                  <CardViewAllButton href="/tasks" label={`View all recent tasks (${recentTasks.length})`} />
+                )}
+              </>
             )}
           </SectionCard>
         </div>
@@ -509,7 +609,7 @@ export default async function DashboardPage() {
         <section className="grid gap-6 xl:grid-cols-2">
           <SectionCard
             title="My Recent Tasks"
-            subtitle={`${developerAssignedTasks.length}`}
+            subtitle={`${developerAssignedTasks.length} total`}
             action={
               <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                 View all →
@@ -519,39 +619,46 @@ export default async function DashboardPage() {
             {developerAssignedTasks.length === 0 ? (
               <EmptyState message="No tasks assigned to you yet." />
             ) : (
-              <div className="space-y-3">
-                {developerAssignedTasks.slice(0, 5).map((task) => (
-                  <Link
-                    key={task.id}
-                    href={`/tasks/${task.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
-                  >
-                    <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
-                      {task.title}
-                    </p>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusBadge status={task.status} />
-                      <PriorityBadge priority={task.priority} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <>
+                <div className="space-y-3">
+                  {developerAssignedTasks.slice(0, 3).map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700 transition-colors">
+                        {task.title}
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={task.status} />
+                        <PriorityBadge priority={task.priority} />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                {developerAssignedTasks.length > 3 && (
+                  <CardViewAllButton href="/tasks" label={`View all my tasks (${developerAssignedTasks.length})`} />
+                )}
+              </>
             )}
           </SectionCard>
 
           <SectionCard
             title="Upcoming Deadlines"
-            subtitle={`${developerAssignedTasks.filter((t) => t.dueDate && t.status !== "COMPLETED").length}`}
+            subtitle={`${myUpcomingDeadlines.length} total`}
+            action={
+              <Link href="/tasks?sort=dueDate" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                View all →
+              </Link>
+            }
           >
-            {developerAssignedTasks.filter((t) => t.dueDate && t.status !== "COMPLETED").length === 0 ? (
+            {myUpcomingDeadlines.length === 0 ? (
               <EmptyState message="No active deadlines." />
             ) : (
-              <div className="space-y-3">
-                {developerAssignedTasks
-                  .filter((t) => t.dueDate && t.status !== "COMPLETED")
-                  .sort((a, b) => new Date(a.dueDate as Date).getTime() - new Date(b.dueDate as Date).getTime())
-                  .slice(0, 5)
-                  .map((task) => (
+              <>
+                <div className="space-y-3">
+                  {myUpcomingDeadlines.slice(0, 3).map((task) => (
                     <Link
                       key={task.id}
                       href={`/tasks/${task.id}`}
@@ -566,7 +673,11 @@ export default async function DashboardPage() {
                       <StatusBadge status={task.status} />
                     </Link>
                   ))}
-              </div>
+                </div>
+                {myUpcomingDeadlines.length > 3 && (
+                  <CardViewAllButton href="/tasks?sort=dueDate" label={`View all my deadlines (${myUpcomingDeadlines.length})`} />
+                )}
+              </>
             )}
           </SectionCard>
         </section>
